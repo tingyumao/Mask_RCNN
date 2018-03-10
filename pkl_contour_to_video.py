@@ -33,16 +33,16 @@ def main():
                    'teddy bear', 'hair drier', 'toothbrush']
     
     # video directory
-    video_dir = "../../aic2018/track1/track1_videos/"
-    detect_dir = "../../aic2018/track1/detect/"
-    save_dir = "../../aic2018/track1/detect_videos/"
+    video_dir = "../../aic2018/track3/track3_videos/"
+    detect_dir = "../../aic2018/track3/detect/"
+    save_dir = "../../aic2018/track3/detect_videos/"
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
     # set upper and lower bound of visualizd frames
-    ub = 1800
+    ub = 1000
     lb = 0
     
-    videonames = [x for x in os.listdir(video_dir) if x.startswith("Loc3_1.mp4")]
+    videonames = [x for x in os.listdir(video_dir) if x.startswith("Loc4_1.mp4")]
     for videoname in videonames:
         print("Processing video {}...".format(videoname))
         # read video
@@ -50,7 +50,7 @@ def main():
         vid = imageio.get_reader(video_file,  'ffmpeg')
         # load pkl files
         pkl_dir = os.path.join(detect_dir, videoname)
-        pkl_files = sorted([x for x in os.listdir(pkl_dir)])
+        pkl_files = [str(x).zfill(7)+".pkl" for x in range(lb, ub+1)]#sorted([x for x in os.listdir(pkl_dir)])
         # write output video
         fps = vid.get_meta_data()['fps']
         writer = imageio.get_writer(os.path.join(save_dir, videoname.replace(".mp4", "_detect.mp4")), fps=fps)

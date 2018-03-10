@@ -71,12 +71,12 @@ def main():
                    'teddy bear', 'hair drier', 'toothbrush']
     
     # read video
-    video_dir = "../../aic2018/track1/track1_videos/"
-    save_dir = "../../aic2018/track1/detect/"
+    video_dir = "../../aic2018/track3/track3_videos/"
+    save_dir = "../../aic2018/track3/detect/"
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
     
-    videonames = [x for x in os.listdir(video_dir) if x.startswith("Loc3_1.mp4")]
+    videonames = [x for x in os.listdir(video_dir) if x.startswith("Loc4_1.mp4")]
     
     batch_size = config.GPU_COUNT*config.IMAGES_PER_GPU
     for videoname in videonames:
