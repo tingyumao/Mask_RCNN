@@ -15,6 +15,31 @@ import utils
 import model as modellib
 #import visualize
 
+import xmltodict
+
+def parse_scene_info(xml_path):
+    assert os.path.isfile(xml_path), "{} Not found".format(xml_path)
+    
+    scene_data = dict()
+    with open(xml_path) as fd:
+        annotations = xmltodict.parse(fd.read())
+    ## read weather: is here a typo? "sence_weather"(as shown in xml files) or it should be "sence_weather"?
+    weather = annotations["sequence"]["sequence_attribute"]["@sence_weather"]
+    scene_data["weather"] = weather
+    
+    ## read ignore region
+    ignore_regions = list()
+    if annotations["sequence"]["ignored_region"] != None:
+        if isinstance(annotations["sequence"]["ignored_region"]["box"], dict):
+            annotations["sequence"]["ignored_region"]["box"] = [annotations["sequence"]["ignored_region"]["box"]]
+        for box in annotations["sequence"]["ignored_region"]["box"]:
+            x1, y1, w, h = float(box["@left"]), float(box["@top"]), float(box["@width"]), float(box["@height"])
+            x2, y2 = x1+w, y1+h
+            ignore_regions.append([x1, y1, x2, y2])
+    scene_data["ignore_region"] = ignore_regions
+    
+    return scene_data
+
 def mask_to_contours(mask):
     _, contours, hierarchy = cv2.findContours(mask.copy(),
                                             cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE,
@@ -70,19 +95,25 @@ def main():
                    'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
                    'teddy bear', 'hair drier', 'toothbrush']
     
-    # read video
-    video_dir = "../../aic2018/track1/track1_videos/"
-    save_dir = "../../aic2018/track1/detect/"
+    
+    # read scene
+    info_dir = "../../detrac/DETRAC-Train-Annotations-XML/"
+    video_dir = "../../detrac/Insight-MVT_Annotation_Train/"
+    save_dir = "../../detrac/train_detect_output/"
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
     
-    videonames = [x for x in os.listdir(video_dir) if x.startswith("Loc")]
+    videonames = [x for x in os.listdir(video_dir) if x.startswith("MVI")]
     print(videonames)
     batch_size = config.GPU_COUNT*config.IMAGES_PER_GPU
     for videoname in videonames:
-        print("Processing video {}...".format(videoname))
-        video_file = os.path.join(video_dir, videoname)
-        vid = imageio.get_reader(video_file,  'ffmpeg')
+        print("Processing scene {}...".format(videoname))
+        video_files = sorted([img for img in os.listdir(os.path.join(video_dir, videoname)) if img.endswith(".jpg")])
+        video_info = parse_scene_info(os.path.join(info_dir, videoname+".xml"))
+        #vid = imageio.get_reader(video_file,  'ffmpeg')
+        if video_info["weather"] == "night":
+            print("Skipping {} due to night.".format(videoname))
+            continue
         
         save_pkl_dir = os.path.join(save_dir, videoname)
         if not os.path.isdir(save_pkl_dir):
@@ -92,14 +123,15 @@ def main():
             start_point = len(os.listdir(save_pkl_dir))
         
         # tqdm progress bar
-        pbar = tqdm.tqdm(total = vid.get_length()-start_point)
-        for fnum in range(start_point, vid.get_length(), batch_size):
+        pbar = tqdm.tqdm(total = len(video_files)-start_point)
+        for fnum in range(start_point, len(video_files), batch_size):
             batch_data = []
             for i in range(batch_size):
-                if fnum+i<vid.get_length():
-                    batch_data.append(vid.get_data(fnum+i))
+                if fnum+i<len(video_files):
+                    batch_data.append(cv2.imread(os.path.join(video_dir, videoname, video_files[fnum+i])))
                 else:
-                    batch_data.append(np.zeros((1080,1920,3)))
+                    batch_data.append(np.zeros((960,540,3)))
+            #batch_data = np.array(batch_data)
             results = model.detect(batch_data, verbose=0)
             for i, r in enumerate(results):
                 ## transform mask to contours
@@ -110,8 +142,8 @@ def main():
                 r['contours'] = contours
                 r.pop('masks', None) # This will return my_dict[key] if key exists in the dictionary, and None otherwise.
                 ## save a single pkl for each frame
-                if fnum + i < vid.get_length():
-                    with open(os.path.join(save_pkl_dir, str(fnum+i).zfill(7)+".pkl"), "wb") as f:
+                if fnum + i < len(video_files):
+                    with open(os.path.join(save_pkl_dir, video_files[fnum+i].replace(".jpg","")+".pkl"), "wb") as f:
                         pickle.dump(r, f, protocol=2)
                 
                 pbar.update(1)
